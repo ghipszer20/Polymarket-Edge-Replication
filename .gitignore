@@ -31,3 +31,6 @@ wta_elo.json
 atp_elo_raw.html
 wta_elo_raw.html
 tennis_elo_cache.json
+
+# Scheduler output
+*.log
