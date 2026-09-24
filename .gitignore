@@ -34,3 +34,7 @@ tennis_elo_cache.json
 
 # Scheduler output
 *.log
+
+# Cached API pulls and scratch analysis output
+*_cache.json
+*_scratch.json
