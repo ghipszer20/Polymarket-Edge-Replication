@@ -1,0 +1,5 @@
+requests>=2.31
+aiohttp>=3.9
+beautifulsoup4>=4.12
+# The older mlb_*/nba_* research and bot scripts need more packages (pandas, numpy,
+# py-clob-client, ...) that are not pinned here.

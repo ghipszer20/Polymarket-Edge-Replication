@@ -5,6 +5,10 @@ backtest in `claudesports_shadow.py` showed doesn't hold up (reactive copying lo
 money; see that file's docstring for the full reasoning). This plan is based on
 directly analyzing claudesports's own trading data in `claudesports_shadow.db`.
 
+> **Read "Status and caveats" at the end first.** "Confirmed" below means confirmed on the same
+> ~141 days of data the conclusions were drawn from (in-sample, no holdout). Nothing here has been
+> validated out of sample or with real money.
+
 ## What claudesports actually is
 
 Not a rewards-farming bot (checked: taker-fee pools in its niche markets are too
@@ -73,9 +77,25 @@ uniformly, across every market type tested.
 
 **Architectural implication — the bot has two layers, and only one is
 domain-specific:**
-1. **Universal entry-timing filter** (shared infrastructure, build once): only
-   evaluate/enter markets priced in the 0.0-0.4 range, skip anything the crowd has
-   already mostly settled (0.7+). This rule is identical across every category.
+1. **Universal price-band filter** (shared infrastructure, build once): only
+   evaluate/enter markets priced roughly 0.10-0.70. Dollar P&L by price band across
+   the confirmed-edge categories (3,878 resolved fills, $107k cost) shows both edges
+   of the band matter:
+
+   | Price band | fills | cost | ROI | share of net profit |
+   |---|---|---|---|---|
+   | 0.0-0.1 | 2,162 | $14.8k | **-8.4%** | -2.9% |
+   | 0.1-0.2 | 416 | $12.7k | +81.3% | 24.2% |
+   | 0.2-0.3 | 643 | $23.4k | +23.1% | 12.7% |
+   | 0.3-0.4 | 256 | $17.8k | +51.8% | 21.6% |
+   | 0.4-0.5 | 115 | $11.6k | +46.5% | 12.6% |
+   | 0.5-0.6 | 212 | $13.4k | +58.3% | 18.4% |
+   | 0.6-0.7 | 46 | $8.2k | +54.0% | 10.3% |
+   | 0.7-1.0 | 28 | $5.3k | +25.7% | 3.2% |
+
+   The sub-0.10 band is 56% of its fills but only 14% of its dollars, and it LOSES money;
+   claudesports barely trades above 0.70. (An earlier version of this plan said 0.0-0.4;
+   that was wrong.) This rule is identical across every category.
 2. **Domain-specific fair-value model** (build one per category): weather forecast
    model, soccer/tennis odds comparison, MLB win-probability extension, CS2 stats
    model. This is the part that actually varies, and only needs to operate *within*
@@ -131,13 +151,13 @@ then category-specific scoring only on what survives it.
 2. **Live scanning engine, two stages.** Stage A (shared, build once): poll Gamma
    across confirmed-edge categories only (weather, soccer, props, MLB, tennis, CS2 —
    explicitly skip crypto, commodities, NBA, LoL), and filter to markets currently
-   priced in the 0.0-0.4 range — this single rule is identical across every category
-   and mirrors exactly how claudesports itself behaves everywhere. Stage B
+   priced 0.10-0.70 — this single rule is identical across every category
+   and mirrors how claudesports itself behaves everywhere. Stage B
    (category-specific): only for what survives Stage A, run the relevant
-   domain fair-value model and flag genuine edge above a threshold. Note soccer's
-   edge specifically concentrates in the 0.4-0.8 band per the calibration check
-   above, which sits right at the boundary of Stage A's default filter — worth a
-   soccer-specific override rather than the universal 0.0-0.4 cutoff.
+   domain fair-value model and flag genuine edge above a threshold. Soccer's
+   calibration edge concentrates in the 0.4-0.8 band while its 0.0-0.3 band is
+   flat-to-negative, so soccer likely wants a narrower band (about 0.4-0.7)
+   than the universal one. `maker_engine.py` implements 0.10-0.70.
 3. **Execution layer.** `py-clob-client` order placement, sized via a capped/
    Kelly-fraction rule given the small-edge/high-frequency nature of these markets.
    Gated behind explicit confirmation before going live with real capital — this is
@@ -147,3 +167,30 @@ then category-specific scoring only on what survives it.
    track live fair-value-vs-market divergence, fill rate, and realized P&L by
    category, so any category that stops working (as crypto/commodities already have
    for claudesports) gets cut quickly.
+
+## Status and caveats (as of 2026-09-24)
+
+**Reconciliation against Polymarket's own numbers.**
+- The leaderboard's "volume" for claudesports ($1,278,593) is a SHARE count, not dollars: our fills
+  total 1,274,567 shares. Cash actually spent on BUY trades is about $156k (7,738 buys in the full
+  activity history).
+- The leaderboard's all-time PnL ($33,430) matches the P&L computed independently from our fills
+  and resolutions ($33,372). Activity of type REWARD ($1.7k) and MAKER_REBATE ($0.9k) is about
+  $2.7k in total, so rewards and rebates are a small part of the profit, not its source.
+
+**What is NOT established.**
+- Every band and category verdict above was derived from the same ~141 days of fills with no
+  holdout. A time-split out-of-sample check was proposed and has not been run.
+- Capital deployed at any one time is unknown: cash spent is ~$156k over 141 days, but positions
+  resolve and recycle, so do not quote a return on capital from this repo.
+- The tennis fair-value model (Tennis Abstract Elo) has never been validated. Published work finds
+  Elo about 66% accurate versus about 70% for bookmaker odds, and ML adds only ~0.5-2.5 points over
+  Elo, so large model-vs-market gaps are more likely model error than mispricing. The forward paper
+  tracker (`paper_tracker.py`) exists to answer this; it reports nothing conclusive until at least
+  200 markets have resolved. Elo covers about 55% of pre-match singles markets.
+- No bookmaker-odds benchmark exists yet, and the other categories (weather, props, soccer, MLB,
+  CS2) have no fair-value model at all.
+
+**Safety.** Everything here is paper-only. `maker_engine.py` refuses to construct in live mode.
+The older `mlb_live_bot.py` / `nba_live_bot.py` will trade if `POLYMARKET_PRIVATE_KEY` is set in the
+environment; leave it unset.
