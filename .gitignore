@@ -1,0 +1,33 @@
+# Secrets — never commit. Wallet keys / API keys belong in .env or real env vars.
+.env
+.env.*
+*.pem
+*.key
+
+# Environments / IDE
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+Untitled.ipynb
+
+# Local databases and generated data (regenerable from the scripts; several are huge)
+*.db
+*.sqlite
+*.pkl
+poly_data/
+.backtester_cache/
+nba_events.json
+unique_tokens.txt
+nba_live_bot_trades.csv
+
+# Scratch analysis artifacts written by ad-hoc investigation scripts
+sample_*.json
+weather_universe_*.json
+category_distributions.json
+atp_elo.json
+wta_elo.json
+atp_elo_raw.html
+wta_elo_raw.html
+tennis_elo_cache.json
